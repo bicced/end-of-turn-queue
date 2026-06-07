@@ -75,20 +75,18 @@ end-of-turn-queue/
 │   ├── plugin.json          # plugin manifest (name, keywords, metadata)
 │   └── marketplace.json     # self-hosted marketplace so the repo is installable
 ├── commands/
-│   ├── queue.md             # /queue        — pipe the prompt to queue-add.sh
+│   ├── queue.md             # /queue        — append (JSON-encoded) to the queue
 │   ├── queue-list.md        # /queue-list   — read-only view of pending prompts
 │   └── queue-clear.md       # /queue-clear  — empty the queue
 ├── hooks/
 │   └── hooks.json           # registers the Stop hook -> scripts/queue-flush.sh
 └── scripts/
-    ├── queue-add.sh         # appends one JSON-encoded line (prompt read from stdin)
     └── queue-flush.sh       # pops one entry per turn, returns it via decision:block
 ```
 
 - **Queue file:** `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`, one entry per line.
-  Each line is a **JSON-encoded string**, so prompts containing quotes, `$(...)`,
-  backticks, or newlines survive intact and are never executed. `/queue` pipes the
-  prompt to `queue-add.sh` via a quoted heredoc (data, not shell code).
+  `/queue` JSON-encodes the prompt with `jq` so it is stored as one line and the
+  flush side can decode it losslessly (see the input caveat under Behavior notes).
 - **Pop:** the flush script removes the first non-blank line **positionally** (no
   fragile content matching), builds the response **before** removing the entry, and
   swaps the file with an atomic rename — so any failure leaves the queue intact and
@@ -108,8 +106,14 @@ end-of-turn-queue/
   `AskUserQuestion` tool, so a queued prompt won't hijack a multiple-choice question.
   A plain-text "do you want A or B?" turn *does* end the turn, so a queued item could
   be delivered there — clear the queue (`/queue-clear`) if that's a concern.
-- **Multi-line and special characters are fine.** The prompt is passed as data and
-  JSON-encoded, so quotes, shell metacharacters, and newlines are preserved verbatim.
+- **Keep a queued prompt to one line, and avoid shell metacharacters in it.**
+  Claude Code substitutes a command's `$ARGUMENTS` into the shell *without escaping*
+  (a known Claude Code limitation, [issue #16163](https://github.com/anthropics/claude-code/issues/16163)),
+  and that applies to every slash command — not just this one. In practice: a prompt
+  with a double quote may fail to queue, and you should **never pipe untrusted text
+  into `/queue`** (text containing `$(...)` or backticks could execute at queue time).
+  Plain one-line reminders are exactly what this is for. For something elaborate,
+  queue a short pointer ("do the refactor we discussed").
 - **Very long queues.** Claude Code has a safety limit on consecutive Stop-hook
   continuations (it stops honoring a hook that keeps blocking without progress). Each
   delivered prompt is real work, which normally counts as progress, so queues drain —

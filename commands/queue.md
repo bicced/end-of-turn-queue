@@ -1,17 +1,9 @@
 ---
 description: Queue a prompt to run at the very end of the current turn, never mid-loop.
 argument-hint: <prompt to run once the current turn finishes>
+allowed-tools: Bash(mkdir:*), Bash(jq:*)
 ---
-```!
-"${CLAUDE_PLUGIN_ROOT}/scripts/queue-add.sh" <<'__EOTQ_PROMPT__'
-$ARGUMENTS
-__EOTQ_PROMPT__
-```
-
-The command above appended your prompt to the end-of-turn queue (encoded safely as
-one JSON line at `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`). The prompt is passed
-as data via a quoted heredoc, so quotes, `$(...)`, and backticks in it are never
-executed.
+!`if [ -z "$ARGUMENTS" ]; then echo "Nothing to queue. Usage: /queue <prompt>"; else mkdir -p "${CLAUDE_PROJECT_DIR}/.claude" && jq -nc --arg p "$ARGUMENTS" '$p' >> "${CLAUDE_PROJECT_DIR}/.claude/prompt-queue" && echo "Queued for end-of-turn: $ARGUMENTS"; fi`
 
 Reflect the command's output — don't assume success. If it confirms a prompt was
 queued, reply with a single short line confirming that; if it says nothing was
