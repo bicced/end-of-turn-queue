@@ -141,6 +141,21 @@ Then delete any leftover `.claude/prompt-queue` from projects where you used it.
 
 ---
 
+## Development
+
+Run the regression suite (requires `bash`, `jq`, `awk`):
+
+```bash
+tests/run.sh
+```
+
+It drives the real `scripts/queue-flush.sh` and the `!` snippets extracted from
+`commands/*.md` against a throwaway queue — FIFO order, self-termination, quote/
+newline round-trips, the jq-missing guard, leading-blank handling, and the
+add/list/clear logic. Exits non-zero on any failure.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
