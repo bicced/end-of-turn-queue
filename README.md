@@ -1,12 +1,12 @@
 # end-of-turn-queue — a Claude Code prompt queue plugin
 
-> Queue prompts with `/queue` that fire **at the end of the turn**, after Claude
+> Queue prompts with `/queue:add` that fire **at the end of the turn**, after Claude
 > fully finishes — **never mid-task**. A FIFO prompt queue for [Claude Code](https://code.claude.com/docs),
 > built on a self-terminating **Stop hook**.
 
 You think of something while Claude is working — "also run the tests", "update the
 changelog", "open a PR when you're done". You don't want to interrupt the current
-task-loop, and you don't want to forget. `/queue` jots it down; the plugin hands it
+task-loop, and you don't want to forget. `/queue:add` jots it down; the plugin hands it
 back to Claude the moment the current turn finishes, one item at a time, in order.
 
 ---
@@ -31,7 +31,7 @@ to land. This plugin turns that hook into a FIFO queue:
 
 ```text
 /plugin marketplace add bicced/end-of-turn-queue
-/plugin install end-of-turn-queue@bicced
+/plugin install queue@bicced
 ```
 
 Then restart Claude Code (or run `/reload-plugins`) so the Stop hook is registered.
@@ -51,14 +51,14 @@ restart to take effect.
 
 | Command | What it does |
 |---|---|
-| `/queue <prompt>` | Append a prompt to the end-of-turn queue. |
-| `/queue-list` | Show what's currently queued (next-to-deliver first). |
-| `/queue-clear` | Empty the queue. |
+| `/queue:add <prompt>` | Append a prompt to the end-of-turn queue. |
+| `/queue:list` | Show what's currently queued (next-to-deliver first). |
+| `/queue:clear` | Empty the queue. |
 
 ```text
-/queue run the test suite and report failures
-/queue update CHANGELOG.md with today's changes
-/queue-list
+/queue:add run the test suite and report failures
+/queue:add update CHANGELOG.md with today's changes
+/queue:list
 ```
 
 Claude confirms each item is queued and keeps working. When it finishes the current
@@ -75,9 +75,9 @@ end-of-turn-queue/
 │   ├── plugin.json          # plugin manifest (name, keywords, metadata)
 │   └── marketplace.json     # self-hosted marketplace so the repo is installable
 ├── commands/
-│   ├── queue.md             # /queue        — append (JSON-encoded) to the queue
-│   ├── queue-list.md        # /queue-list   — read-only view of pending prompts
-│   └── queue-clear.md       # /queue-clear  — empty the queue
+│   ├── add.md               # /queue:add    — append (JSON-encoded) to the queue
+│   ├── list.md              # /queue:list   — read-only view of pending prompts
+│   └── clear.md             # /queue:clear  — empty the queue
 ├── hooks/
 │   └── hooks.json           # registers the Stop hook -> scripts/queue-flush.sh
 └── scripts/
@@ -85,7 +85,7 @@ end-of-turn-queue/
 ```
 
 - **Queue file:** `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`, one entry per line.
-  `/queue` JSON-encodes the prompt with `jq` so it is stored as one line and the
+  `/queue:add` JSON-encodes the prompt with `jq` so it is stored as one line and the
   flush side can decode it losslessly (see the input caveat under Behavior notes).
 - **Pop:** the flush script removes the first non-blank line **positionally** (no
   fragile content matching), builds the response **before** removing the entry, and
@@ -105,13 +105,13 @@ end-of-turn-queue/
 - **Structured clarifying questions are safe.** The Stop hook does not fire for the
   `AskUserQuestion` tool, so a queued prompt won't hijack a multiple-choice question.
   A plain-text "do you want A or B?" turn *does* end the turn, so a queued item could
-  be delivered there — clear the queue (`/queue-clear`) if that's a concern.
+  be delivered there — clear the queue (`/queue:clear`) if that's a concern.
 - **Keep a queued prompt to one line, and avoid shell metacharacters in it.**
   Claude Code substitutes a command's `$ARGUMENTS` into the shell *without escaping*
   (a known Claude Code limitation, [issue #16163](https://github.com/anthropics/claude-code/issues/16163)),
   and that applies to every slash command — not just this one. In practice: a prompt
   with a double quote may fail to queue, and you should **never pipe untrusted text
-  into `/queue`** (text containing `$(...)` or backticks could execute at queue time).
+  into `/queue:add`** (text containing `$(...)` or backticks could execute at queue time).
   Plain one-line reminders are exactly what this is for. For something elaborate,
   queue a short pointer ("do the refactor we discussed").
 - **Very long queues.** Claude Code has a safety limit on consecutive Stop-hook
@@ -134,7 +134,7 @@ end-of-turn-queue/
 ## Uninstall
 
 ```text
-/plugin uninstall end-of-turn-queue@bicced
+/plugin uninstall queue@bicced
 ```
 
 Then delete any leftover `.claude/prompt-queue` from projects where you used it.
