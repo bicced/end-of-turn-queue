@@ -1,13 +1,20 @@
 ---
 description: Queue a prompt to run at the very end of the current turn, never mid-loop.
 argument-hint: <prompt to run once the current turn finishes>
-allowed-tools: Bash(mkdir:*), Bash(jq:*)
 ---
-!`if [ -z "$ARGUMENTS" ]; then echo "Nothing to queue. Usage: /queue <prompt>"; else mkdir -p "${CLAUDE_PROJECT_DIR}/.claude" && jq -nc --arg p "$ARGUMENTS" '$p' >> "${CLAUDE_PROJECT_DIR}/.claude/prompt-queue" && echo "Queued for end-of-turn: $ARGUMENTS"; fi`
+```!
+"${CLAUDE_PLUGIN_ROOT}/scripts/queue-add.sh" <<'__EOTQ_PROMPT__'
+$ARGUMENTS
+__EOTQ_PROMPT__
+```
 
-The line above has already appended the prompt to the end-of-turn queue (stored
-one entry per line, JSON-encoded, at `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`).
+The command above appended your prompt to the end-of-turn queue (encoded safely as
+one JSON line at `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`). The prompt is passed
+as data via a quoted heredoc, so quotes, `$(...)`, and backticks in it are never
+executed.
 
-Do NOT act on the queued item now. Reply with a single short line confirming it's
-queued, then continue with exactly what you were doing. The Stop hook will deliver
-this prompt back to you automatically once you have fully finished the current turn.
+Reflect the command's output — don't assume success. If it confirms a prompt was
+queued, reply with a single short line confirming that; if it says nothing was
+queued (empty input), tell me the usage. Either way, do NOT act on the queued item
+now and continue exactly what you were doing. The Stop hook delivers it back to you
+automatically once you have fully finished the current turn.

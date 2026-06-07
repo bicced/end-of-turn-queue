@@ -14,6 +14,10 @@
 # Queue format: one entry per line at ${CLAUDE_PROJECT_DIR}/.claude/prompt-queue,
 # each line a JSON-encoded string (robust to quotes, newlines, anything). A
 # hand-written plain-text line is also tolerated (used verbatim).
+#
+# Failure stance: NEVER lose a queued entry. The block response is built BEFORE
+# the entry is removed, and removal is an atomic rename, so any failure path
+# leaves the queue intact and simply delivers nothing this turn.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -21,7 +25,13 @@ set -euo pipefail
 # surface a broken pipe to the caller, so drain it cleanly.
 cat >/dev/null 2>&1 || true
 
+# jq is required to decode entries and to emit the response. If it is missing we
+# cannot deliver, so leave the queue untouched and let Claude stop normally.
+command -v jq >/dev/null 2>&1 || exit 0
+
 QUEUE="${CLAUDE_PROJECT_DIR:-.}/.claude/prompt-queue"
+TMP=""
+trap 'rm -f "${TMP:-}" 2>/dev/null || true' EXIT
 
 # Nothing queued -> let Claude stop normally.
 [ -s "$QUEUE" ] || exit 0
@@ -35,20 +45,28 @@ if [ -z "$NEXT_RAW" ]; then
   exit 0
 fi
 
-# Decode the JSON-encoded entry; fall back to the raw line for hand-edited files.
-NEXT="$(printf '%s' "$NEXT_RAW" | jq -r . 2>/dev/null)" || NEXT="$NEXT_RAW"
+# Decode the entry. Lines are JSON-encoded strings; a hand-edited plain-text
+# line (invalid JSON, or non-string JSON like null/objects) falls back to the
+# raw line so nothing is ever silently dropped.
+NEXT="$(printf '%s' "$NEXT_RAW" | jq -er 'select(type == "string")' 2>/dev/null)" || NEXT="$NEXT_RAW"
 [ -n "$NEXT" ] || NEXT="$NEXT_RAW"
 
-# Remove the first non-blank line (and any blank lines before it); preserve the
-# order of everything after it.
-awk 'BEGIN{popped=0}
-     { if (!popped && NF) { popped=1; next } if (popped) print }' \
-  "$QUEUE" > "$QUEUE.tmp" && mv "$QUEUE.tmp" "$QUEUE"
-
-# Hand the prompt back as Claude's next instruction.
+# Build the response BEFORE mutating the queue, so a jq failure here can never
+# drop the entry.
 REASON="Delivered from the end-of-turn queue (your turn finished, so here is the next queued prompt). Complete it, then stop — any remaining queued prompts arrive the same way.
 
 ${NEXT}"
+OUT="$(jq -nc --arg r "$REASON" '{decision:"block", reason:$r}')"
 
-jq -nc --arg r "$REASON" '{decision:"block", reason:$r}'
+# Pop the first non-blank line (and any blank lines before it); preserve the
+# order of everything after it. Unique temp + atomic rename on the same fs.
+TMP="$(mktemp "${QUEUE}.XXXXXX")"
+awk 'BEGIN{popped=0}
+     { if (!popped && NF) { popped=1; next } if (popped) print }' \
+  "$QUEUE" > "$TMP"
+mv "$TMP" "$QUEUE"
+TMP=""
+
+# Deliver only after the entry is safely removed.
+printf '%s\n' "$OUT"
 exit 0

@@ -75,19 +75,24 @@ end-of-turn-queue/
 │   ├── plugin.json          # plugin manifest (name, keywords, metadata)
 │   └── marketplace.json     # self-hosted marketplace so the repo is installable
 ├── commands/
-│   ├── queue.md             # /queue        — append (JSON-encoded) to the queue
+│   ├── queue.md             # /queue        — pipe the prompt to queue-add.sh
 │   ├── queue-list.md        # /queue-list   — read-only view of pending prompts
 │   └── queue-clear.md       # /queue-clear  — empty the queue
 ├── hooks/
 │   └── hooks.json           # registers the Stop hook -> scripts/queue-flush.sh
 └── scripts/
+    ├── queue-add.sh         # appends one JSON-encoded line (prompt read from stdin)
     └── queue-flush.sh       # pops one entry per turn, returns it via decision:block
 ```
 
 - **Queue file:** `${CLAUDE_PROJECT_DIR}/.claude/prompt-queue`, one entry per line.
-  Each line is a **JSON-encoded string**, so prompts containing quotes or newlines
-  survive intact. The flush script pops the first line **positionally** (no fragile
-  content matching) and writes the rest back atomically.
+  Each line is a **JSON-encoded string**, so prompts containing quotes, `$(...)`,
+  backticks, or newlines survive intact and are never executed. `/queue` pipes the
+  prompt to `queue-add.sh` via a quoted heredoc (data, not shell code).
+- **Pop:** the flush script removes the first non-blank line **positionally** (no
+  fragile content matching), builds the response **before** removing the entry, and
+  swaps the file with an atomic rename — so any failure leaves the queue intact and
+  never drops a prompt.
 - **Delivery:** the Stop hook emits `{"decision":"block","reason":"<your prompt>"}`,
   which tells Claude to keep going with that prompt as its next instruction.
 
@@ -103,9 +108,13 @@ end-of-turn-queue/
   `AskUserQuestion` tool, so a queued prompt won't hijack a multiple-choice question.
   A plain-text "do you want A or B?" turn *does* end the turn, so a queued item could
   be delivered there — clear the queue (`/queue-clear`) if that's a concern.
-- **Keep a single queued prompt on one logical line.** Long multi-line prompts are
-  best queued as a short pointer ("do the refactor we discussed"). Avoid unbalanced
-  shell quotes in a single `/queue` invocation.
+- **Multi-line and special characters are fine.** The prompt is passed as data and
+  JSON-encoded, so quotes, shell metacharacters, and newlines are preserved verbatim.
+- **Very long queues.** Claude Code has a safety limit on consecutive Stop-hook
+  continuations (it stops honoring a hook that keeps blocking without progress). Each
+  delivered prompt is real work, which normally counts as progress, so queues drain —
+  but if you stack many trivial items that produce no work, the tail may not all
+  deliver in one chain. Queue handfuls, not hundreds.
 - **Subagents are never touched.** This plugin defines no `SubagentStop` hook, so
   queued prompts never leak into a subagent's context.
 
