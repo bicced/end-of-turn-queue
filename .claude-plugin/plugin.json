@@ -1,0 +1,22 @@
+{
+  "name": "end-of-turn-queue",
+  "version": "0.1.0",
+  "description": "Queue prompts with /queue — each is delivered back to Claude at the end of the turn, after it fully finishes its work, never mid-task. A FIFO prompt queue for Claude Code, built on a self-terminating Stop hook.",
+  "author": { "name": "Jeff" },
+  "homepage": "https://github.com/bicced/end-of-turn-queue",
+  "repository": "https://github.com/bicced/end-of-turn-queue",
+  "license": "MIT",
+  "keywords": [
+    "queue",
+    "prompt-queue",
+    "claude-code",
+    "claude-code-plugin",
+    "claude-code-hooks",
+    "stop-hook",
+    "end-of-turn",
+    "fifo",
+    "workflow",
+    "slash-command",
+    "automation"
+  ]
+}

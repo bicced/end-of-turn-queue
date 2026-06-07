@@ -1,0 +1,8 @@
+# OS / editor cruft
+.DS_Store
+*.swp
+
+# Local runtime queue (only exists in projects that *use* the plugin, never here,
+# but ignore it defensively so a stray test file never gets committed).
+.claude/prompt-queue
+*.tmp

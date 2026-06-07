@@ -1,0 +1,21 @@
+{
+  "name": "bicced",
+  "owner": { "name": "Jeff" },
+  "description": "Claude Code plugins by bicced.",
+  "plugins": [
+    {
+      "name": "end-of-turn-queue",
+      "source": "./",
+      "description": "Queue prompts with /queue — delivered back to Claude at the end of the turn via a self-terminating Stop hook. A FIFO prompt queue for Claude Code that never fires mid-task.",
+      "keywords": [
+        "queue",
+        "prompt-queue",
+        "claude-code",
+        "stop-hook",
+        "end-of-turn",
+        "fifo",
+        "workflow"
+      ]
+    }
+  ]
+}
